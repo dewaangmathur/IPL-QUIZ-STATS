@@ -61,8 +61,8 @@ export const gtBowlAR  = () => GT_SQUAD.filter(p => p.role !== "bat");
 
 // ─── FAMILY ──────────────────────────────────────────────────────────────────
 export const FAMILY = [
-  { id:"ragini_taiji",     name:"Ragini Taiji",     emoji:"👩‍🦳" },
-  { id:"pankaj_tauji",     name:"Pankaj Tauji",     emoji:"👨‍🦳" },
+  { id:"ragini_taiji",     name:"Ragini Taiji",     emoji:"👩" },
+  { id:"pankaj_tauji",     name:"Pankaj Tauji",     emoji:"👨" },
   { id:"harry_bhaiya",     name:"Harry Bhaiya",     emoji:"🧑" },
   { id:"sameer_phufaji",   name:"Sameer Phufaji",   emoji:"👨" },
   { id:"bharti_bhua",      name:"Bharti Bhua",      emoji:"👩" },
