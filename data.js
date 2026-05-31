@@ -1,8 +1,5 @@
-// ─── SQUADS (official 25-man lists) ──────────────────────────────────────────
-// role: bat | ar | bowl
-
+// ─── SQUADS ──────────────────────────────────────────────────────────────────
 export const RCB_SQUAD = [
-  // Batters / WK
   { name:"Rajat Patidar",     role:"bat",  roleLabel:"🏏 Batter (c)" },
   { name:"Virat Kohli",       role:"bat",  roleLabel:"🏏 Batter" },
   { name:"Phil Salt",         role:"bat",  roleLabel:"🏏 WK-Batter" },
@@ -10,7 +7,6 @@ export const RCB_SQUAD = [
   { name:"Tim David",         role:"bat",  roleLabel:"🏏 Batter" },
   { name:"Jordan Cox",        role:"bat",  roleLabel:"🏏 WK-Batter" },
   { name:"Jitesh Sharma",     role:"bat",  roleLabel:"🏏 WK-Batter" },
-  // All-rounders
   { name:"Jacob Bethell",     role:"ar",   roleLabel:"⚡ Batting AR" },
   { name:"Venkatesh Iyer",    role:"ar",   roleLabel:"⚡ All-Rounder" },
   { name:"Krunal Pandya",     role:"ar",   roleLabel:"⚡ All-Rounder" },
@@ -18,7 +14,6 @@ export const RCB_SQUAD = [
   { name:"Kanishk Chouhan",   role:"ar",   roleLabel:"⚡ Bowling AR" },
   { name:"Vihaan Malhotra",   role:"ar",   roleLabel:"⚡ Batting AR" },
   { name:"Mangesh Yadav",     role:"ar",   roleLabel:"⚡ All-Rounder" },
-  // Bowlers
   { name:"Josh Hazlewood",    role:"bowl", roleLabel:"🎯 Bowler" },
   { name:"Bhuvneshwar Kumar", role:"bowl", roleLabel:"🎯 Bowler" },
   { name:"Suyash Sharma",     role:"bowl", roleLabel:"🎯 Bowler" },
@@ -32,7 +27,6 @@ export const RCB_SQUAD = [
 ];
 
 export const GT_SQUAD = [
-  // Batters / WK
   { name:"Shubman Gill",       role:"bat",  roleLabel:"🏏 Batter (c)" },
   { name:"Anuj Rawat",         role:"bat",  roleLabel:"🏏 WK-Batter" },
   { name:"Jos Buttler",        role:"bat",  roleLabel:"🏏 WK-Batter" },
@@ -40,7 +34,6 @@ export const GT_SQUAD = [
   { name:"M Shahrukh Khan",    role:"bat",  roleLabel:"🏏 Batter" },
   { name:"Kumar Kushagra",     role:"bat",  roleLabel:"🏏 WK-Batter" },
   { name:"Connor Esterhuizen", role:"bat",  roleLabel:"🏏 Batter" },
-  // All-rounders
   { name:"Glenn Phillips",     role:"ar",   roleLabel:"⚡ All-Rounder" },
   { name:"Rashid Khan",        role:"ar",   roleLabel:"⚡ Bowling AR" },
   { name:"Washington Sundar",  role:"ar",   roleLabel:"⚡ Bowling AR" },
@@ -48,7 +41,6 @@ export const GT_SQUAD = [
   { name:"Rahul Tewatia",      role:"ar",   roleLabel:"⚡ Bowling AR" },
   { name:"Nishant Sindhu",     role:"ar",   roleLabel:"⚡ All-Rounder" },
   { name:"Manav Suthar",       role:"ar",   roleLabel:"⚡ Bowling AR" },
-  // Bowlers
   { name:"Mohammed Siraj",     role:"bowl", roleLabel:"🎯 Bowler" },
   { name:"Kagiso Rabada",      role:"bowl", roleLabel:"🎯 Bowler" },
   { name:"Prasidh Krishna",    role:"bowl", roleLabel:"🎯 Bowler" },
@@ -62,7 +54,6 @@ export const GT_SQUAD = [
   { name:"Luke Wood",          role:"bowl", roleLabel:"🎯 Bowler" },
 ];
 
-// Filter helpers
 export const rcbBatAR  = () => RCB_SQUAD.filter(p => p.role !== "bowl");
 export const rcbBowlAR = () => RCB_SQUAD.filter(p => p.role !== "bat");
 export const gtBatAR   = () => GT_SQUAD.filter(p => p.role !== "bowl");
@@ -84,10 +75,8 @@ export const FAMILY = [
 ];
 
 // ─── QUESTIONS ────────────────────────────────────────────────────────────────
-// Q3 (margin): label + type auto-derived from q_winner in app.js
-// Winning by runs  → batting team won → user picked them
-// Winning by wickets → chasing team won → user picked them
-// App detects battingFirst + q_winner to auto-set margin unit label
+// REMOVED: Best Bowling Figures (q_bowling)
+// ADDED:   Winning team's choice - bat or bowl (q_bat_bowl) between Q1 and Q2
 
 export const QUESTIONS = [
   // ── Section 1: Team ──
@@ -100,6 +89,18 @@ export const QUESTIONS = [
     pts:     2,
   },
   {
+    // NEW: after toss, what will toss winner choose?
+    section: null,
+    id:      "q_bat_bowl",
+    label:   "Toss Winner Will Choose…",
+    type:    "choice",
+    options: ["Batting","Bowling"],
+    optionEmojis: ["🏏","🎯"],
+    scoring: "binary",
+    pts:     3,
+    hint:    "What will the toss winner elect to do?",
+  },
+  {
     section: null,
     id:      "q_winner",
     label:   "Match Winner",
@@ -108,18 +109,14 @@ export const QUESTIONS = [
     pts:     5,
   },
   {
-    // margin unit (runs/wickets) is auto-determined by:
-    // winner == battingFirst → wins by RUNS
-    // winner != battingFirst (chasing) → wins by WICKETS
-    // If battingFirst not set yet → show both toggle options
     section: null,
     id:      "q_margin",
     label:   "Winning Margin",
     type:    "margin",
     scoring: "closest",
     pts:     8,
+    hint:    "Auto-sets runs/wickets based on your Match Winner pick",
   },
-
   // ── Section 2: Player ──
   {
     section: "⭐ Player Predictions",
@@ -184,7 +181,6 @@ export const QUESTIONS = [
     pts:     3,
     filter:  "batAR",
   },
-
   // ── Section 3: Innings ──
   {
     section: "📊 Innings Stats",
@@ -208,17 +204,6 @@ export const QUESTIONS = [
     max:     50,
     default: 12,
   },
-
-  // ── Section 4: Advanced ──
-  {
-    section: "🎯 Advanced",
-    id:      "q_bowling",
-    label:   "Best Bowling Figures",
-    type:    "bowling",
-    scoring: "bowling_exact",
-    pts:     8,
-    filter:  "bowlAR",
-  },
 ];
 
 // ─── SCORING ENGINE ───────────────────────────────────────────────────────────
@@ -232,11 +217,9 @@ export function scoreAll(predictions, actuals) {
   const rows = Object.entries(predictions).map(([pid, preds]) => {
     let total = 0;
     const breakdown = {};
-
     for (const q of QUESTIONS) {
       const pred   = preds?.[q.id];
       const actual = actuals?.[q.id];
-
       if (!actual && actual !== 0) {
         breakdown[q.id] = { pts:0, bonus:0, label:"pending", diff:null };
         continue;
@@ -245,13 +228,11 @@ export function scoreAll(predictions, actuals) {
         breakdown[q.id] = { pts:0, bonus:0, label:"no_pred", diff:null };
         continue;
       }
-
-      if (q.scoring === "binary" || q.scoring === "bowling_exact") {
+      if (q.scoring === "binary") {
         const correct = String(pred).trim().toLowerCase() === String(actual).trim().toLowerCase();
         const pts = correct ? q.pts : 0;
         breakdown[q.id] = { pts, bonus:0, label: correct ? "correct" : "wrong", diff:null };
         total += pts;
-
       } else if (q.scoring === "closest") {
         const predN = parseNum(pred);
         const actN  = parseNum(actual);
@@ -268,18 +249,16 @@ export function scoreAll(predictions, actuals) {
     return { playerId: pid, total, breakdown };
   });
 
-  // Closest bonus: +5 to unique nearest per numerical question
+  // Closest bonus +5
   for (const q of QUESTIONS) {
     if (q.scoring !== "closest") continue;
     const actual = actuals?.[q.id];
     if (!actual && actual !== 0) continue;
     const actN = parseNum(actual);
     if (isNaN(actN)) continue;
-
     const withDiff = rows
       .map(r => ({ pid: r.playerId, diff: r.breakdown[q.id]?.diff }))
       .filter(x => x.diff !== null && x.diff !== undefined && x.diff > 0);
-
     if (!withDiff.length) continue;
     const minDiff = Math.min(...withDiff.map(x => x.diff));
     const closest = withDiff.filter(x => x.diff === minDiff);

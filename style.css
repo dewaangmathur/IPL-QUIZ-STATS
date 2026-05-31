@@ -668,3 +668,27 @@ body{
 .rs-correct{font-size:.72rem;color:var(--t2);text-align:center;}
 .rs-pts{font-weight:900;color:#818CF8;text-align:right;}
 .rs-money{font-size:.72rem;font-weight:800;color:var(--green);text-align:right;}
+
+/* ── CHOICE CARD (bat/bowl Q) ── */
+.choice-card{
+  border:2px solid var(--border);border-radius:var(--r);
+  padding:14px 12px;text-align:center;cursor:pointer;
+  transition:all .18s;background:var(--bg3);
+}
+.choice-card:hover{transform:translateY(-2px);}
+.choice-card.selected{border-color:var(--accent,#6366F1);background:rgba(99,102,241,.12);box-shadow:0 0 0 1px rgba(99,102,241,.2);}
+
+/* ── NAME BUTTON DONE STATE ── */
+.name-btn-done{
+  border-color:var(--green)!important;
+  background:rgba(16,185,129,.08)!important;
+}
+.name-btn-done:hover{
+  border-color:var(--green)!important;
+  background:rgba(16,185,129,.14)!important;
+  transform:translateY(-2px);
+}
+.nb-done{
+  display:block;font-size:.7rem;color:var(--green);
+  font-weight:700;margin-top:2px;
+}
