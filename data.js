@@ -61,8 +61,8 @@ export const gtBowlAR  = () => GT_SQUAD.filter(p => p.role !== "bat");
 
 // ─── FAMILY ──────────────────────────────────────────────────────────────────
 export const FAMILY = [
-  { id:"ragini_taiji",     name:"Ragini Taiji",     emoji:"👩" },
-  { id:"pankaj_tauji",     name:"Pankaj Tauji",     emoji:"👨" },
+  { id:"ragini_taiji",     name:"Ragini Taiji",     emoji:"👩‍🦳" },
+  { id:"pankaj_tauji",     name:"Pankaj Tauji",     emoji:"👨‍🦳" },
   { id:"harry_bhaiya",     name:"Harry Bhaiya",     emoji:"🧑" },
   { id:"sameer_phufaji",   name:"Sameer Phufaji",   emoji:"👨" },
   { id:"bharti_bhua",      name:"Bharti Bhua",      emoji:"👩" },
@@ -72,6 +72,10 @@ export const FAMILY = [
   { id:"devu",             name:"Devu",             emoji:"🙋" },
   { id:"anchal_mathur",    name:"Anchal",           emoji:"👧" },
   { id:"vishal_mathur",    name:"Vishal",           emoji:"👦" },
+  { id:"lehak",            name:"Lehak",            emoji:"👧" },
+  { id:"pravya",           name:"Pravya",           emoji:"👧" },
+  { id:"rishabh_bhaiya",   name:"Rishabh Bhaiya",   emoji:"🧑" },
+  { id:"swati_bhabhi",     name:"Swati Bhabhi",     emoji:"👩" },
 ];
 
 // ─── QUESTIONS ────────────────────────────────────────────────────────────────
@@ -288,7 +292,7 @@ export function parseNum(v) {
 }
 
 export function calcPrizes(ranked) {
-  const pool = 1100;
+  const pool = 1500;
   const dist = [0.40, 0.25, 0.15, 0.07, 0.05, 0.04, 0.04];
   const prizes = {};
   let given = 0;
