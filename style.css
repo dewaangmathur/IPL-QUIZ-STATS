@@ -301,6 +301,27 @@ body{
 }
 .margin-type-btn.sel{border-color:var(--gt);color:#60A5FA;background:rgba(59,130,246,.1);}
 
+/* ── MARGIN WIDGET ── */
+.margin-no-winner{
+  background:rgba(245,158,11,.06);border:1px dashed rgba(245,158,11,.25);
+  border-radius:var(--r-sm);padding:14px;text-align:center;
+  font-size:.83rem;color:var(--gold);font-weight:600;
+}
+.margin-unit-badge{
+  border-radius:var(--r-sm);padding:10px 14px;
+  font-size:.82rem;font-weight:700;margin-bottom:12px;text-align:center;
+}
+.runs-badge{background:rgba(59,130,246,.1);color:#60A5FA;border:1px solid rgba(59,130,246,.2);}
+.wkts-badge{background:rgba(239,68,68,.1);color:#F87171;border:1px solid rgba(239,68,68,.2);}
+.margin-type-row{display:flex;gap:8px;margin-bottom:12px;}
+.margin-type-btn{
+  flex:1;background:var(--bg3);border:1.5px solid var(--border);
+  border-radius:var(--r-sm);padding:10px;
+  color:var(--t2);font-size:.85rem;font-weight:700;cursor:pointer;
+  text-align:center;transition:all .18s;
+}
+.margin-type-btn.sel{border-color:var(--gt);color:#60A5FA;background:rgba(59,130,246,.1);}
+
 /* ── BOWLING WIDGET ── */
 .bowling-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .bowling-sub-label{font-size:.75rem;color:var(--t2);font-weight:700;margin-bottom:8px;}
@@ -581,3 +602,69 @@ body{
   .innings-grid{grid-template-columns:1fr;}
   .name-grid{grid-template-columns:1fr 1fr;}
 }
+
+/* ═══════════════ RESULTS TABLE ═══════════════ */
+.results-note{
+  background:rgba(245,158,11,.07);border:1px dashed rgba(245,158,11,.25);
+  border-radius:var(--r);padding:16px;text-align:center;
+  font-size:.85rem;color:var(--gold);font-weight:600;margin-bottom:4px;
+}
+.allq-pts-tag{font-size:.7rem;color:var(--gold);font-weight:700;}
+
+.res-block{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);overflow:hidden;
+}
+.res-head{
+  padding:11px 14px;background:var(--bg3);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+.res-q{font-size:.78rem;font-weight:800;color:var(--t2);}
+.res-actual{
+  font-size:.8rem;font-weight:800;color:var(--green);
+  background:rgba(16,185,129,.1);padding:3px 10px;border-radius:20px;flex-shrink:0;
+}
+.res-rows{display:flex;flex-direction:column;}
+.res-row{
+  display:grid;grid-template-columns:22px 1fr 1fr 54px;
+  align-items:center;gap:6px;
+  padding:9px 12px;border-bottom:1px solid var(--border);
+  font-size:.82rem;
+}
+.res-row:last-child{border-bottom:none;}
+.res-row.correct{background:rgba(16,185,129,.04);}
+.res-row.exact  {background:rgba(245,158,11,.06);}
+.res-row.closest{background:rgba(139,92,246,.06);}
+.res-icon{font-size:.9rem;text-align:center;}
+.res-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.res-pred{color:var(--t2);font-size:.78rem;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.res-row.correct .res-pred{color:var(--green);}
+.res-row.exact   .res-pred{color:var(--gold);}
+.res-row.closest .res-pred{color:#A78BFA;}
+.res-pts{font-size:.75rem;font-weight:800;text-align:right;white-space:nowrap;}
+.res-pts.win {color:var(--green);}
+.res-pts.near{color:#A78BFA;}
+.res-pts.lose{color:var(--t3);}
+
+.res-summary-head{
+  font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--t2);padding:8px 2px;margin-top:4px;
+  display:flex;align-items:center;gap:8px;
+}
+.res-summary-head::after{content:'';flex:1;height:1px;background:var(--border);}
+.res-summary{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;
+}
+.res-summary-row{
+  display:grid;grid-template-columns:28px 1fr 44px 52px 48px;
+  align-items:center;gap:6px;
+  padding:11px 14px;border-bottom:1px solid var(--border);font-size:.82rem;
+}
+.res-summary-row:last-child{border-bottom:none;}
+.res-summary-row.me{background:rgba(99,102,241,.08);}
+.rs-rank{font-size:1.1rem;text-align:center;}
+.rs-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rs-correct{font-size:.72rem;color:var(--t2);text-align:center;}
+.rs-pts{font-weight:900;color:#818CF8;text-align:right;}
+.rs-money{font-size:.72rem;font-weight:800;color:var(--green);text-align:right;}

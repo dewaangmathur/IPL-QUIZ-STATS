@@ -6,24 +6,23 @@ import {
   scoreAll, calcPrizes, parseNum
 } from "./data.js";
 
-// ─── STATE ──────────────────────────────────────────────────────────────────
-let me = null;           // { id, name, emoji }
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let me = null;
 let isAdmin = false;
-let gs = {               // gameState from Firebase
+let gs = {
   matchStatus: "pre",
   tossWinner: "",
   battingFirst: "",
   score: { gt:{runs:0,wickets:0,overs:0,status:""}, rcb:{runs:0,wickets:0,overs:0,status:""} },
   actuals: {},
 };
-let allPreds = {};       // { playerId: { qId: val } }
-let localPreds = {};     // working predictions for current user
-let scored = [];         // output of scoreAll(), refreshed on Firebase changes
+let allPreds  = {};
+let localPreds = {};
+let scored    = [];
 
 // Modal state
-let modalQid = null;
-let modalSelected = null; // { name, team }
-let modalFilter = "all";
+let modalOnPick = null;
+let modalSelected = null;
 
 // ─── FIREBASE LISTENERS ──────────────────────────────────────────────────────
 onValue(ref(db, "gameState"), snap => {
@@ -31,6 +30,9 @@ onValue(ref(db, "gameState"), snap => {
   renderMiniScoreBar();
   renderLiveCard();
   updatePredictLockUI();
+  // Re-render Q3 margin widget since battingFirst may have changed
+  const mq = QUESTIONS.find(q => q.id === "q_margin");
+  if (mq && document.getElementById("s-predict").classList.contains("active")) renderQBody(mq);
   recomputeAndRender();
   if (document.getElementById("s-admin").classList.contains("active")) syncAdminFields();
   updateHeroBadge();
@@ -55,7 +57,7 @@ function recomputeAndRender() {
 function show(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
-  window.scrollTo(0,0);
+  window.scrollTo(0, 0);
 }
 
 // ─── BOOT ────────────────────────────────────────────────────────────────────
@@ -83,7 +85,7 @@ function updateHeroBadge() {
   const el = document.getElementById("hero-toss-badge");
   if (!el) return;
   if (gs.tossWinner) {
-    el.textContent = `🪙 Toss: ${gs.tossWinner} won · ${gs.battingFirst||"?"} batting`;
+    el.textContent = `🪙 Toss: ${gs.tossWinner} won · ${gs.battingFirst || "?"} batting first`;
     el.style.display = "inline-block";
   } else {
     el.style.display = "none";
@@ -122,7 +124,33 @@ function tryAdminLogin() {
   }
 }
 document.getElementById("btn-admin-go").addEventListener("click", tryAdminLogin);
-document.getElementById("admin-pw").addEventListener("keydown", e => { if(e.key==="Enter") tryAdminLogin(); });
+document.getElementById("admin-pw").addEventListener("keydown", e => { if (e.key === "Enter") tryAdminLogin(); });
+
+// ─── MARGIN HELPER ────────────────────────────────────────────────────────────
+// Figures out the margin unit label from the user's Match Winner pick + battingFirst
+function getMarginUnit() {
+  const winner = localPreds["q_winner"];       // "RCB" | "GT" | ""
+  const batting = gs.battingFirst;             // "RCB" | "GT" | ""
+
+  if (!winner) return null;                    // winner not picked yet
+
+  if (!batting) {
+    // Admin hasn't set battingFirst yet — let user toggle manually
+    return localPreds["q_margin_type"] || "runs";
+  }
+
+  // If winner == batting team → they defended → win by RUNS
+  // If winner != batting team → they chased → win by WICKETS
+  return winner === batting ? "runs" : "wickets";
+}
+
+function getMarginLabel() {
+  const winner = localPreds["q_winner"];
+  const unit   = getMarginUnit();
+  if (!winner) return "Pick Match Winner first ↑";
+  if (!unit)   return "runs";
+  return `${winner} wins by … ${unit}`;
+}
 
 // ─── PREDICTION FORM BUILD ────────────────────────────────────────────────────
 function buildPredictForm() {
@@ -131,7 +159,6 @@ function buildPredictForm() {
   let lastSection = null;
 
   QUESTIONS.forEach((q, idx) => {
-    // Section label
     if (q.section && q.section !== lastSection) {
       lastSection = q.section;
       const sl = document.createElement("div");
@@ -143,13 +170,12 @@ function buildPredictForm() {
     const card = document.createElement("div");
     card.className = "q-card";
     card.id = `qcard-${q.id}`;
-
     card.innerHTML = `
       <div class="q-head">
-        <span class="q-num">${idx+1}</span>
+        <span class="q-num">${idx + 1}</span>
         <div class="q-info">
           <div class="q-label">${q.label}</div>
-          ${q.hint ? `<div class="q-hint">${q.hint}</div>` : ""}
+          <div class="q-hint" id="qhint-${q.id}">${q.hint || ""}</div>
         </div>
         <span class="q-pts">+${q.pts}pts</span>
       </div>
@@ -165,15 +191,16 @@ function renderQBody(q) {
   if (!body) return;
   const val = localPreds[q.id];
 
+  // ── TEAM ──
   if (q.type === "team") {
     body.innerHTML = `
       <div class="team-cards">
-        <div class="team-card rcb-card ${val==="RCB"?"selected":""}" data-qid="${q.id}" data-val="RCB">
+        <div class="team-card rcb-card ${val === "RCB" ? "selected" : ""}" data-qid="${q.id}" data-val="RCB">
           <div class="tc-flag">🔴</div>
           <div class="tc-short rcb-color">RCB</div>
           <div class="tc-full">Royal Challengers<br>Bengaluru</div>
         </div>
-        <div class="team-card gt-card ${val==="GT"?"selected":""}" data-qid="${q.id}" data-val="GT">
+        <div class="team-card gt-card ${val === "GT" ? "selected" : ""}" data-qid="${q.id}" data-val="GT">
           <div class="tc-flag">🔵</div>
           <div class="tc-short gt-color">GT</div>
           <div class="tc-full">Gujarat<br>Titans</div>
@@ -185,37 +212,69 @@ function renderQBody(q) {
         renderQBody(q);
         markAnswered(q.id);
         updateProgress();
-        // Re-render margin if winner changed
-        const mq = QUESTIONS.find(x => x.id === "q_margin");
-        if (q.id === "q_winner" && mq) renderQBody(mq);
+        // Q3 margin depends on Q2 winner → re-render it
+        if (q.id === "q_winner") {
+          const mq = QUESTIONS.find(x => x.id === "q_margin");
+          if (mq) renderQBody(mq);
+        }
       });
     });
 
+  // ── MARGIN (Q3) ──
   } else if (q.type === "margin") {
-    const winner = localPreds["q_winner"] || "";
-    const marginType = localPreds[`${q.id}_type`] || "runs";
-    const marginVal  = localPreds[q.id] !== undefined ? localPreds[q.id] : 10;
-    body.innerHTML = `
-      ${winner ? `<div class="q-hint" style="margin-bottom:10px;">${winner} wins by…</div>` : `<div class="q-hint" style="margin-bottom:10px;">Pick Match Winner first, then set margin</div>`}
-      <div class="margin-type-row">
-        <button class="margin-type-btn ${marginType==="runs"?"sel":""}" data-mt="runs">🏏 Runs</button>
-        <button class="margin-type-btn ${marginType==="wickets"?"sel":""}" data-mt="wickets">🎯 Wickets</button>
-      </div>
-      ${buildNumStepper(q.id, marginVal, 1, 150, marginType==="runs"?"runs":"wickets")}
-    `;
-    body.querySelectorAll(".margin-type-btn").forEach(b => {
-      b.addEventListener("click", () => {
-        localPreds[`${q.id}_type`] = b.dataset.mt;
-        renderQBody(q);
-      });
-    });
-    attachStepperListeners(body, q.id, 1, 150);
+    const winner  = localPreds["q_winner"];
+    const unit    = getMarginUnit();       // "runs" | "wickets" | null
+    const numVal  = val !== undefined && val !== "" ? val : 10;
+    const hintEl  = document.getElementById(`qhint-${q.id}`);
 
+    if (!winner) {
+      // Winner not picked yet
+      body.innerHTML = `<div class="margin-no-winner">⬆️ Pick your Match Winner first to unlock this question</div>`;
+      if (hintEl) hintEl.textContent = "";
+      return;
+    }
+
+    const unitLabel = unit === "runs" ? "runs" : "wickets";
+    const maxVal    = unit === "wickets" ? 10 : 150;
+    const minVal    = 1;
+
+    if (hintEl) {
+      hintEl.textContent = unit
+        ? `${winner} wins by … (${unitLabel})`
+        : "Select margin type";
+    }
+
+    // If admin hasn't set battingFirst, show manual toggle
+    const showToggle = !gs.battingFirst;
+
+    body.innerHTML = `
+      ${showToggle ? `
+        <div class="margin-type-row">
+          <button class="margin-type-btn ${unit === "runs" ? "sel" : ""}" data-mt="runs">🏏 Runs</button>
+          <button class="margin-type-btn ${unit === "wickets" ? "sel" : ""}" data-mt="wickets">🎯 Wickets</button>
+        </div>` : `
+        <div class="margin-unit-badge ${unit === "runs" ? "runs-badge" : "wkts-badge"}">
+          ${unit === "runs" ? "🏏 Wins by RUNS (batting team won)" : "🎯 Wins by WICKETS (chasing team won)"}
+        </div>`}
+      ${buildNumStepper(q.id, numVal, minVal, maxVal, unitLabel)}
+    `;
+
+    if (showToggle) {
+      body.querySelectorAll(".margin-type-btn").forEach(b => {
+        b.addEventListener("click", () => {
+          localPreds["q_margin_type"] = b.dataset.mt;
+          renderQBody(q);
+        });
+      });
+    }
+    attachStepperListeners(body, q.id, minVal, maxVal);
+
+  // ── PLAYER ──
   } else if (q.type === "player") {
     const picked = val ? findPlayer(val) : null;
     body.innerHTML = `
-      <button class="player-pick-btn ${picked?"picked":""}" data-qid="${q.id}">
-        <span class="ppb-icon">${picked ? (picked.team==="RCB"?"🔴":"🔵") : "🙋"}</span>
+      <button class="player-pick-btn ${picked ? "picked" : ""}" data-qid="${q.id}">
+        <span class="ppb-icon">${picked ? (picked.team === "RCB" ? "🔴" : "🔵") : "🙋"}</span>
         <span class="ppb-text">
           ${picked
             ? `<div class="ppb-name">${picked.name}</div><div class="ppb-team">${picked.team} · ${picked.roleLabel}</div>`
@@ -225,22 +284,24 @@ function renderQBody(q) {
       </button>`;
     body.querySelector(".player-pick-btn").addEventListener("click", () => openModal(q));
 
+  // ── NUMBER ──
   } else if (q.type === "number") {
     const v = val !== undefined ? val : q.default;
     body.innerHTML = buildNumStepper(q.id, v, q.min, q.max, "");
     attachStepperListeners(body, q.id, q.min, q.max);
 
+  // ── BOWLING ──
   } else if (q.type === "bowling") {
-    const bwls = val ? val.split("/") : ["3","24"];
-    const wkts = parseInt(bwls[0]) || 3;
-    const runs  = parseInt(bwls[1]) || 24;
-    const bowlerPicked = localPreds[`${q.id}_bowler`] ? findPlayer(localPreds[`${q.id}_bowler`]) : null;
+    const parts   = val ? val.split("/") : ["3", "24"];
+    const wkts    = parseInt(parts[0]) || 3;
+    const runs    = parseInt(parts[1]) || 24;
+    const bowler  = localPreds[`${q.id}_bowler`] ? findPlayer(localPreds[`${q.id}_bowler`]) : null;
     body.innerHTML = `
-      <button class="player-pick-btn ${bowlerPicked?"picked":""}" data-qid="${q.id}_bowler" style="margin-bottom:12px;">
-        <span class="ppb-icon">${bowlerPicked ? (bowlerPicked.team==="RCB"?"🔴":"🔵") : "🎯"}</span>
+      <button class="player-pick-btn ${bowler ? "picked" : ""}" data-qid="${q.id}_bowler" style="margin-bottom:12px;">
+        <span class="ppb-icon">${bowler ? (bowler.team === "RCB" ? "🔴" : "🔵") : "🎯"}</span>
         <span class="ppb-text">
-          ${bowlerPicked
-            ? `<div class="ppb-name">${bowlerPicked.name}</div><div class="ppb-team">${bowlerPicked.team}</div>`
+          ${bowler
+            ? `<div class="ppb-name">${bowler.name}</div><div class="ppb-team">${bowler.team}</div>`
             : `<div class="ppb-name" style="color:var(--t2)">Select bowler (optional)</div>`}
         </span>
         <span class="ppb-arrow">›</span>
@@ -251,7 +312,7 @@ function renderQBody(q) {
           ${buildNumStepper(`${q.id}_w`, wkts, 0, 10, "wkts")}
         </div>
         <div>
-          <div class="bowling-sub-label">Runs Given</div>
+          <div class="bowling-sub-label">Runs Conceded</div>
           ${buildNumStepper(`${q.id}_r`, runs, 0, 99, "runs")}
         </div>
       </div>`;
@@ -269,40 +330,39 @@ function syncBowling(qid) {
   updateProgress();
 }
 
-// Stepper builder
+// ── NUM STEPPER ──
 function buildNumStepper(id, val, min, max, unit) {
   return `
     <div class="num-stepper" id="stepper-${id}">
       <button class="ns-btn big" data-sid="${id}" data-dir="-10">−10</button>
-      <button class="ns-btn" data-sid="${id}" data-dir="-1">−</button>
-      <input class="ns-input" id="nsinput-${id}" type="number" value="${val}" min="${min}" max="${max}"/>
-      <button class="ns-btn" data-sid="${id}" data-dir="1">+</button>
+      <button class="ns-btn"     data-sid="${id}" data-dir="-1">−</button>
+      <input  class="ns-input"   id="nsinput-${id}" type="number" value="${val}" min="${min}" max="${max}"/>
+      <button class="ns-btn"     data-sid="${id}" data-dir="1">+</button>
       <button class="ns-btn big" data-sid="${id}" data-dir="10">+10</button>
     </div>
-    ${unit ? `<div class="ns-label">${unit}</div>` : ""}
-  `;
+    ${unit ? `<div class="ns-label">${unit}</div>` : ""}`;
 }
 
 function attachStepperListeners(body, id, min, max, onChangeCb) {
   const getInp = () => document.getElementById(`nsinput-${id}`);
+
   body.querySelectorAll(`[data-sid="${id}"]`).forEach(btn => {
-    btn.addEventListener("click", () => {
+    const fire = () => {
       const inp = getInp(); if (!inp) return;
-      let v = parseInt(inp.value)||0;
+      let v = parseInt(inp.value) || 0;
       v = Math.max(min, Math.min(max, v + parseInt(btn.dataset.dir)));
       inp.value = v;
       localPreds[id] = v;
-      if (onChangeCb) onChangeCb(); else { markAnswered(id.split("_")[0]+"_"+id.split("_")[1]); updateProgress(); }
-    });
-    // long-press repeat
+      if (onChangeCb) onChangeCb(); else { markAnswered(id); updateProgress(); }
+    };
+    btn.addEventListener("click", fire);
+
+    // Long-press repeat
     let timer, interval;
-    btn.addEventListener("pointerdown", () => {
-      timer = setTimeout(() => {
-        interval = setInterval(() => btn.click(), 80);
-      }, 400);
-    });
-    ["pointerup","pointerleave"].forEach(e => btn.addEventListener(e, () => { clearTimeout(timer); clearInterval(interval); }));
+    btn.addEventListener("pointerdown", () => { timer = setTimeout(() => { interval = setInterval(fire, 80); }, 400); });
+    ["pointerup","pointerleave","pointercancel"].forEach(e => btn.addEventListener(e, () => { clearTimeout(timer); clearInterval(interval); }));
   });
+
   // Direct typing
   const inp = getInp();
   if (inp) {
@@ -312,7 +372,7 @@ function attachStepperListeners(body, id, min, max, onChangeCb) {
       v = Math.max(min, Math.min(max, v));
       inp.value = v;
       localPreds[id] = v;
-      if (onChangeCb) onChangeCb(); else { updateProgress(); }
+      if (onChangeCb) onChangeCb(); else { markAnswered(id); updateProgress(); }
     });
     inp.addEventListener("focus", () => inp.select());
   }
@@ -342,7 +402,7 @@ function updateProgress() {
     if (v !== undefined && v !== null && v !== "") done++;
   });
   const pct = Math.round((done / QUESTIONS.length) * 100);
-  document.getElementById("progress-bar").style.setProperty("--pct", pct+"%");
+  document.getElementById("progress-bar").style.setProperty("--pct", pct + "%");
   document.getElementById("progress-label").textContent = `${done} / ${QUESTIONS.length}`;
 }
 
@@ -353,7 +413,6 @@ function updatePredictLockUI() {
   const chip = document.getElementById("predict-lock-chip");
   chip.textContent = locked ? "🔒 Locked" : "✅ Open";
   chip.className = "lock-chip " + (locked ? "locked" : "open");
-  // Disable interactivity
   document.querySelectorAll("#predict-content button, #predict-content input").forEach(el => {
     el.disabled = locked;
   });
@@ -364,58 +423,51 @@ function renderMiniScoreBar() {
   const bar = document.getElementById("mini-score-bar");
   if (!bar) return;
   const { score, matchStatus, battingFirst } = gs;
-  const gt = score?.gt || {};
+  const gt  = score?.gt  || {};
   const rcb = score?.rcb || {};
-
-  const fmtScore = (t) =>
-    (t.runs !== undefined && t.runs !== null)
-      ? `${t.runs}/${t.wickets??0} (${t.overs??0})`
-      : "—";
-
-  const statusMap = { pre:"pre", live:"live", completed:"done" };
+  const fmt = t => (t.runs !== undefined && t.runs !== null) ? `${t.runs}/${t.wickets ?? 0} (${t.overs ?? 0} ov)` : "—";
+  const statusMap   = { pre:"pre", live:"live", completed:"done" };
   const statusLabel = { pre:"Pre-Match", live:"● LIVE", completed:"Done" };
-
   bar.innerHTML = `
     <span class="msb-team rcb-color">RCB</span>
-    <span class="msb-score msb-rcb">${fmtScore(rcb)}</span>
+    <span class="msb-score msb-rcb">${fmt(rcb)}</span>
     <span class="msb-sep">·</span>
     <span class="msb-team gt-color">GT</span>
-    <span class="msb-score msb-gt">${fmtScore(gt)}</span>
+    <span class="msb-score msb-gt">${fmt(gt)}</span>
     ${battingFirst ? `<span class="msb-sep">·</span><span style="font-size:.72rem;color:var(--t3)">${battingFirst} batting 1st</span>` : ""}
-    <span class="msb-status ${statusMap[matchStatus]||"pre"}">${statusLabel[matchStatus]||"Pre-Match"}</span>
-  `;
+    <span class="msb-status ${statusMap[matchStatus] || "pre"}">${statusLabel[matchStatus] || "Pre-Match"}</span>`;
 }
 
 // ─── SUBMIT ───────────────────────────────────────────────────────────────────
 document.getElementById("btn-submit").addEventListener("click", async () => {
   if (!me || gs.matchStatus !== "pre") return;
 
-  // Validate all answered
   const missing = [];
   QUESTIONS.forEach(q => {
     const v = localPreds[q.id];
-    const empty = v === undefined || v === null || v === "";
-    const card = document.getElementById(`qcard-${q.id}`);
-    if (empty) {
-      missing.push(q.id);
-      card?.classList.add("error-highlight");
-      setTimeout(() => card?.classList.remove("error-highlight"), 1500);
-    }
+    if (v === undefined || v === null || v === "") missing.push(q);
   });
+
   if (missing.length) {
-    showToast(`⚠️ ${missing.length} question${missing.length>1?"s":""} unanswered — highlighted in red!`);
-    // scroll to first missing
-    const first = document.getElementById(`qcard-${missing[0]}`);
+    missing.forEach(q => {
+      const card = document.getElementById(`qcard-${q.id}`);
+      card?.classList.add("error-highlight");
+      setTimeout(() => card?.classList.remove("error-highlight"), 1800);
+    });
+    showToast(`⚠️ ${missing.length} question${missing.length > 1 ? "s" : ""} unanswered — highlighted red!`);
+    const first = document.getElementById(`qcard-${missing[0].id}`);
     first?.scrollIntoView({ behavior:"smooth", block:"center" });
     return;
   }
 
+  // Store the computed margin type so scoring can use it
+  const mUnit = getMarginUnit();
+  if (mUnit) localPreds["q_margin_type"] = mUnit;
+
   try {
-    // Store margin type alongside value
-    const toSave = { ...localPreds };
-    await set(ref(db, `predictions/${me.id}`), toSave);
+    await set(ref(db, `predictions/${me.id}`), { ...localPreds });
     showToast("🚀 Predictions locked in!");
-    setTimeout(() => showDash(), 600);
+    setTimeout(() => showDash(), 700);
   } catch(e) {
     showToast("❌ Save failed, try again");
     console.error(e);
@@ -434,18 +486,21 @@ document.getElementById("btn-refresh").addEventListener("click", recomputeAndRen
 // ─── LIVE CARD ────────────────────────────────────────────────────────────────
 function renderLiveCard() {
   const { score, matchStatus, battingFirst, actuals } = gs;
-  const gt = score?.gt || {};
+  const gt  = score?.gt  || {};
   const rcb = score?.rcb || {};
+  const fmt = t => (t.runs !== undefined && t.runs !== null) ? `${t.runs}/${t.wickets ?? 0}` : "—";
 
-  const fmtS = (t) =>
-    (t.runs !== undefined && t.runs !== null) ? `${t.runs}/${t.wickets??0}` : "—";
-  document.getElementById("lc-gt-score").textContent = fmtS(gt);
-  document.getElementById("lc-gt-ov").textContent = gt.overs !== undefined ? `(${gt.overs} ov)` : "";
-  document.getElementById("lc-rcb-score").textContent = fmtS(rcb);
-  document.getElementById("lc-rcb-ov").textContent = rcb.overs !== undefined ? `(${rcb.overs} ov)` : "";
+  document.getElementById("lc-rcb-score").textContent = fmt(rcb);
+  document.getElementById("lc-rcb-ov").textContent    = rcb.overs !== undefined ? `(${rcb.overs} ov)` : "";
+  document.getElementById("lc-gt-score").textContent  = fmt(gt);
+  document.getElementById("lc-gt-ov").textContent     = gt.overs !== undefined ? `(${gt.overs} ov)` : "";
 
   const statusEl = document.getElementById("lc-status");
-  const map = { pre:["pre","🟡 Pre-Match · Predictions Open"], live:["live","🔴 LIVE"], completed:["completed","✅ Match Complete"] };
+  const map = {
+    pre:       ["pre",       "🟡 Pre-Match · Predictions Open"],
+    live:      ["live",      "🔴 LIVE"],
+    completed: ["completed", "✅ Match Complete"],
+  };
   const [cls, txt] = map[matchStatus] || map.pre;
   statusEl.className = "lc-status " + cls;
   statusEl.textContent = txt;
@@ -453,8 +508,11 @@ function renderLiveCard() {
   const info = document.getElementById("lc-innings-info");
   const lines = [];
   if (battingFirst) lines.push(`${battingFirst} batting 1st`);
-  if (actuals?.q_winner) lines.push(`Winner: ${actuals.q_winner}`);
-  if (actuals?.q_margin) lines.push(`Margin: ${actuals.q_margin} ${actuals.q_margin_type||""}`);
+  if (actuals?.q_winner) {
+    const margin     = actuals.q_margin;
+    const marginType = actuals.q_margin_type || "runs";
+    lines.push(`Winner: ${actuals.q_winner}${margin ? ` by ${margin} ${marginType}` : ""}`);
+  }
   info.textContent = lines.join(" · ");
 }
 
@@ -462,32 +520,28 @@ function renderLiveCard() {
 function renderLeaderboard() {
   const panel = document.getElementById("tab-leaderboard");
   const { prizes, pool } = calcPrizes(scored);
-  const hasActuals = gs.actuals && Object.keys(gs.actuals).some(k => !k.includes("_type"));
-  const rankEmoji = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟","1️⃣1️⃣"];
-  const rankClass = ["gold","silver","bronze","","","","","","","",""];
-
-  // Build a map: playerId → scored row
+  const hasActuals = gs.actuals && Object.keys(gs.actuals).some(k => !k.includes("_type") && !k.includes("_bowler"));
+  const rankEmoji  = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟","1️⃣1️⃣"];
+  const rankClass  = ["gold","silver","bronze","","","","","","","",""];
   const scoreMap = {};
   scored.forEach(r => scoreMap[r.playerId] = r);
-
-  // Include ALL family members even if no prediction
-  const rows = FAMILY.map((p, i) => {
-    const s = scoreMap[p.id] || { total:0, rank: FAMILY.length, breakdown:{} };
-    const hasPred = !!allPreds[p.id];
-    return { ...p, ...s, hasPred };
-  });
+  const rows = FAMILY.map(p => ({
+    ...p,
+    ...(scoreMap[p.id] || { total:0, rank:FAMILY.length, breakdown:{} }),
+    hasPred: !!allPreds[p.id],
+  }));
   rows.sort((a,b) => b.total - a.total);
-
   let html = `<div class="lb-wrap">`;
   rows.forEach((r, i) => {
-    const isMe = me && r.id === me.id;
+    const isMe  = me && r.id === me.id;
     const prize = prizes[r.id] ?? 0;
+    const correct = Object.values(r.breakdown || {}).filter(b => ["correct","exact","closest"].includes(b.label)).length;
     html += `
-      <div class="lb-row ${isMe?"me":""} ${rankClass[i]||""}">
-        <span class="lb-rank">${rankEmoji[i]||i+1}</span>
+      <div class="lb-row ${isMe ? "me" : ""} ${rankClass[i] || ""}">
+        <span class="lb-rank">${rankEmoji[i] || i+1}</span>
         <div class="lb-info">
-          <div class="lb-name">${r.emoji} ${r.name}${isMe?' <span style="font-size:.7rem;color:var(--t2)">· you</span>':""}</div>
-          <div class="lb-sub">${r.hasPred ? "✅ Submitted" : "⏳ Not submitted"}</div>
+          <div class="lb-name">${r.emoji} ${r.name}${isMe ? ' <span style="font-size:.7rem;color:var(--t2)">· you</span>' : ""}</div>
+          <div class="lb-sub">${r.hasPred ? (hasActuals ? `${correct}/${QUESTIONS.length} correct` : "✅ Submitted") : "⏳ Not submitted"}</div>
         </div>
         <div class="lb-right">
           <div class="lb-pts">${r.total} pts</div>
@@ -497,9 +551,9 @@ function renderLeaderboard() {
   });
   html += `</div>
     <div class="prize-note" style="margin-top:12px;">
-      💰 Prize Pool: <strong>₹${pool}</strong> · ₹100/person<br>
+      💰 Prize Pool: <strong>₹${pool}</strong> &nbsp;·&nbsp; ₹100/person<br>
       ${hasActuals
-        ? `🥇 ₹${prizes[rows[0]?.id]||0} · 🥈 ₹${prizes[rows[1]?.id]||0} · 🥉 ₹${prizes[rows[2]?.id]||0}`
+        ? `🥇 ₹${prizes[rows[0]?.id]||0} &nbsp;·&nbsp; 🥈 ₹${prizes[rows[1]?.id]||0} &nbsp;·&nbsp; 🥉 ₹${prizes[rows[2]?.id]||0}`
         : "Prizes calculated after match ends"}
     </div>`;
   panel.innerHTML = html;
@@ -509,52 +563,44 @@ function renderLeaderboard() {
 function renderMyPicks() {
   const panel = document.getElementById("tab-mypicks");
   if (!me) { panel.innerHTML = ""; return; }
-  const preds = allPreds[me.id] || {};
-  const myScore = scored.find(r => r.playerId === me.id);
-  const hasActuals = gs.actuals && Object.keys(gs.actuals).some(k => !k.includes("_type"));
-
+  const preds      = allPreds[me.id] || {};
+  const myScore    = scored.find(r => r.playerId === me.id);
+  const hasActuals = gs.actuals && Object.keys(gs.actuals).some(k => !k.includes("_type") && !k.includes("_bowler"));
   let lastSection = null;
   let html = "";
-
   QUESTIONS.forEach((q, idx) => {
     if (q.section && q.section !== lastSection) {
       if (lastSection !== null) html += `</div></div>`;
       lastSection = q.section;
       html += `<div class="picks-card"><div class="picks-section-head">${q.section}</div>`;
     }
-
-    const pred = preds[q.id];
-    const br   = myScore?.breakdown?.[q.id];
+    const pred  = preds[q.id];
+    const br    = myScore?.breakdown?.[q.id];
     const label = br?.label || "pending";
-    const pts   = (br?.pts||0) + (br?.bonus||0);
-
+    const pts   = (br?.pts || 0) + (br?.bonus || 0);
     let ptsBadge = "";
     if (hasActuals && gs.actuals?.[q.id]) {
       const cls = { correct:"pts-correct", wrong:"pts-wrong", exact:"pts-exact",
                     closest:"pts-closest", off:"pts-off", no_pred:"pts-wrong" }[label] || "pts-pending";
-      ptsBadge = `<span class="pick-pts-badge ${cls}">${pts > 0 ? "+"+pts : label==="off" ? "off" : "0"}</span>`;
-      if (label === "off" && br.diff !== null) ptsBadge += `<br><span class="diff-tag">off by ${br.diff}</span>`;
+      ptsBadge = `<span class="pick-pts-badge ${cls}">${pts > 0 ? "+" + pts : label === "off" ? "miss" : "0"}</span>`;
+      if (label === "off" && br?.diff) ptsBadge += `<br><span class="diff-tag">off by ${br.diff}</span>`;
     } else {
       ptsBadge = `<span class="pick-pts-badge pts-pending">+${q.pts}?</span>`;
     }
-
-    const predDisplay = formatPredDisplay(q, preds);
     html += `
       <div class="pick-row">
-        <span class="pick-qnum">${idx+1}</span>
+        <span class="pick-qnum">${idx + 1}</span>
         <span class="pick-qlabel">${q.label}</span>
         <div style="text-align:right">
-          <div class="pick-val">${predDisplay || "<span style='color:var(--t3)'>—</span>"}</div>
+          <div class="pick-val">${formatPredDisplay(q, preds) || "<span style='color:var(--t3)'>—</span>"}</div>
           ${ptsBadge}
         </div>
       </div>`;
   });
   if (lastSection) html += `</div></div>`;
-
-  const totalPts = myScore?.total || 0;
   html += `<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;text-align:center;margin-top:4px;">
-    <span style="font-size:.8rem;color:var(--t2);">Total Points</span><br>
-    <span style="font-size:2rem;font-weight:900;color:#818CF8;">${totalPts}</span>
+    <span style="font-size:.8rem;color:var(--t2);">Your Total Points</span><br>
+    <span style="font-size:2rem;font-weight:900;color:#818CF8;">${myScore?.total || 0}</span>
   </div>`;
   panel.innerHTML = html;
 }
@@ -573,48 +619,111 @@ function formatPredDisplay(q, preds) {
   return String(v);
 }
 
-// ─── ALL PICKS ─────────────────────────────────────────────────────────────────
+// ─── ALL PICKS — FULL RESULTS TABLE ──────────────────────────────────────────
 function renderAllPicks() {
   const panel = document.getElementById("tab-allpicks");
-  const hasActuals = gs.actuals && Object.keys(gs.actuals).some(k => !k.includes("_type"));
-
+  const hasActuals = gs.actuals && Object.keys(gs.actuals).some(k => !k.includes("_type") && !k.includes("_bowler"));
   const scoreMap = {};
   scored.forEach(r => scoreMap[r.playerId] = r);
 
+  // Sort family by points for this view too
+  const sortedFamily = [...FAMILY].sort((a,b) => {
+    const pa = scoreMap[a.id]?.total || 0;
+    const pb = scoreMap[b.id]?.total || 0;
+    return pb - pa;
+  });
+
   let html = "";
-  QUESTIONS.forEach((q, idx) => {
-    const actual = gs.actuals?.[q.id];
-    html += `
-      <div class="allq-block">
-        <div class="allq-head">
-          <span>Q${idx+1}: ${q.label}</span>
-          ${hasActuals && actual ? `<span class="allq-actual">✓ ${formatActualDisplay(q, gs.actuals)}</span>` : ""}
-        </div>`;
 
-    FAMILY.forEach(p => {
-      const pred = allPreds[p.id]?.[q.id];
-      const br = scoreMap[p.id]?.breakdown?.[q.id];
-      const label = br?.label || (pred ? "pending" : "empty");
-      const isEmpty = !pred && pred !== 0;
-
-      let valClass = "allq-val";
-      if (!isEmpty && hasActuals && actual) {
-        const clsMap = { correct:"correct", wrong:"wrong", exact:"exact",
-                         closest:"closest", off:"", no_pred:"wrong" };
-        if (clsMap[label] !== undefined) valClass += " " + clsMap[label];
-      } else if (isEmpty) valClass += " empty";
-
-      const display = isEmpty ? "not submitted" : formatPredDisplay(q, allPreds[p.id]);
-      const diff = (br?.diff && label === "off") ? `<span class="allq-diff"> (off by ${br.diff})</span>` : "";
-
-      html += `
-        <div class="allq-row">
+  if (!hasActuals) {
+    // Pre-results: show each question, everyone's pick side by side
+    html += `<div class="results-note">⏳ Results will appear here after admin fills the final answers</div>`;
+    QUESTIONS.forEach((q, idx) => {
+      html += `<div class="allq-block">
+        <div class="allq-head"><span>Q${idx+1}: ${q.label}</span><span class="allq-pts-tag">+${q.pts}pts</span></div>`;
+      FAMILY.forEach(p => {
+        const pred = allPreds[p.id]?.[q.id];
+        const display = pred !== undefined && pred !== null && pred !== ""
+          ? formatPredDisplay(q, allPreds[p.id]) : null;
+        html += `<div class="allq-row">
           <span class="allq-name">${p.emoji} ${p.name}</span>
-          <span class="${valClass}">${display}${diff}</span>
+          <span class="allq-val ${display ? "" : "empty"}">${display || "—"}</span>
         </div>`;
+      });
+      html += `</div>`;
+    });
+
+  } else {
+    // POST-RESULTS: big summary table per question
+    QUESTIONS.forEach((q, idx) => {
+      const actual = gs.actuals?.[q.id];
+      if (!actual && actual !== 0) return;
+      const actualDisplay = formatActualDisplay(q, gs.actuals);
+
+      // Gather all picks with their result
+      const picks = sortedFamily.map(p => {
+        const pred  = allPreds[p.id]?.[q.id];
+        const br    = scoreMap[p.id]?.breakdown?.[q.id];
+        const label = br?.label || (pred ? "pending" : "empty");
+        const pts   = (br?.pts || 0) + (br?.bonus || 0);
+        const display = (pred !== undefined && pred !== null && pred !== "")
+          ? formatPredDisplay(q, allPreds[p.id]) : null;
+        return { p, pred, display, label, pts, diff: br?.diff };
+      });
+
+      // Sort: correct first, then by diff ascending, wrong last
+      const order = { exact:0, correct:0, closest:1, off:2, wrong:3, no_pred:4, empty:5, pending:2 };
+      picks.sort((a,b) => (order[a.label]??3) - (order[b.label]??3) || (a.diff||999) - (b.diff||999));
+
+      const winners = picks.filter(x => ["correct","exact","closest"].includes(x.label));
+      const losers  = picks.filter(x => !["correct","exact","closest"].includes(x.label));
+
+      html += `<div class="res-block">
+        <div class="res-head">
+          <div class="res-q">Q${idx+1} · ${q.label}</div>
+          <div class="res-actual">✅ ${actualDisplay}</div>
+        </div>
+        <div class="res-rows">`;
+
+      picks.forEach(({ p, display, label, pts, diff }) => {
+        const isCorrect = ["correct","exact","closest"].includes(label);
+        const icon = label === "exact" ? "🎯" : label === "closest" ? "📍" : isCorrect ? "✅" : label === "empty" || label === "no_pred" ? "—" : "❌";
+        const rowCls = label === "exact" ? "res-row exact" : label === "closest" ? "res-row closest" : isCorrect ? "res-row correct" : "res-row wrong";
+        const ptsTxt = pts > 0 ? `+${pts}` : label === "off" && diff ? `off by ${diff}` : label === "empty" || label === "no_pred" ? "—" : "0";
+        const ptsCls = pts > 0 ? "res-pts win" : label === "off" ? "res-pts near" : "res-pts lose";
+        html += `<div class="${rowCls}">
+          <span class="res-icon">${icon}</span>
+          <span class="res-name">${p.emoji} ${p.name}</span>
+          <span class="res-pred">${display || "<span style='color:var(--t3)'>not submitted</span>"}</span>
+          <span class="${ptsCls}">${ptsTxt}</span>
+        </div>`;
+      });
+
+      html += `</div></div>`;
+    });
+
+    // Final summary mini-leaderboard at bottom
+    html += `<div class="res-summary-head">🏆 Final Standings</div>`;
+    html += `<div class="res-summary">`;
+    const { prizes } = calcPrizes(scored);
+    const rankEmoji = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟","1️⃣1️⃣"];
+    sortedFamily.forEach((p, i) => {
+      const s = scoreMap[p.id];
+      const pts = s?.total || 0;
+      const prize = prizes[p.id] ?? 0;
+      const correct = Object.values(s?.breakdown || {}).filter(b => ["correct","exact","closest"].includes(b.label)).length;
+      const isMe = me && p.id === me.id;
+      html += `<div class="res-summary-row ${isMe ? "me" : ""}">
+        <span class="rs-rank">${rankEmoji[i] || i+1}</span>
+        <span class="rs-name">${p.emoji} ${p.name}</span>
+        <span class="rs-correct">${correct}/${QUESTIONS.length}</span>
+        <span class="rs-pts">${pts}pts</span>
+        ${prize > 0 ? `<span class="rs-money">₹${prize}</span>` : `<span class="rs-money" style="color:var(--t3)">—</span>`}
+      </div>`;
     });
     html += `</div>`;
-  });
+  }
+
   panel.innerHTML = html;
 }
 
@@ -644,20 +753,16 @@ document.querySelectorAll(".tab").forEach(t => {
 });
 
 // ─── PLAYER MODAL ─────────────────────────────────────────────────────────────
-let modalOnPick = null;
-
 function openModal(q, forceFilter, isBowlerField) {
-  modalQid = q.id;
-  modalFilter = forceFilter || q.filter || "all";
-
+  const filter = forceFilter || q.filter || "all";
   const existVal = isBowlerField ? localPreds[`${q.id}_bowler`] : localPreds[q.id];
   modalSelected = existVal ? findPlayer(existVal) : null;
 
   document.getElementById("modal-title").textContent = q.label;
   document.getElementById("modal-search").value = "";
-  buildModalPlayers(modalFilter);
+  buildModalPlayers(filter);
   document.getElementById("player-modal").classList.remove("hidden");
-  document.getElementById("modal-search").focus();
+  setTimeout(() => document.getElementById("modal-search").focus(), 150);
 
   modalOnPick = (player) => {
     if (isBowlerField) {
@@ -674,37 +779,35 @@ function openModal(q, forceFilter, isBowlerField) {
 
 function buildModalPlayers(filter) {
   let rcbList, gtList;
-  if (filter === "batAR") { rcbList = rcbBatAR(); gtList = gtBatAR(); }
+  if      (filter === "batAR")  { rcbList = rcbBatAR();  gtList = gtBatAR();  }
   else if (filter === "bowlAR") { rcbList = rcbBowlAR(); gtList = gtBowlAR(); }
-  else { rcbList = RCB_SQUAD; gtList = GT_SQUAD; }
+  else                          { rcbList = RCB_SQUAD;   gtList = GT_SQUAD;   }
 
   renderTeamInModal("modal-rcb", rcbList, "rcb");
-  renderTeamInModal("modal-gt", gtList, "gt");
+  renderTeamInModal("modal-gt",  gtList,  "gt");
 }
 
 function renderTeamInModal(containerId, squad, team) {
   const el = document.getElementById(containerId);
-  const groups = { bat:"🏏 Batters / WK", ar:"⚡ All-Rounders", bowl:"🎯 Bowlers" };
-  const roleOrder = team === "rcb" ? ["bat","ar","bowl"] : ["bat","ar","bowl"]; // same order
+  const groupNames = { bat:"🏏 Batters / WK", ar:"⚡ All-Rounders", bowl:"🎯 Bowlers" };
 
   let html = "";
-  for (const role of roleOrder) {
+  for (const role of ["bat","ar","bowl"]) {
     const players = squad.filter(p => p.role === role);
     if (!players.length) continue;
-    html += `<div class="role-group"><div class="role-group-label">${groups[role]}</div><div class="player-chips" id="chips-${team}-${role}">`;
+    html += `<div class="role-group"><div class="role-group-label">${groupNames[role]}</div><div class="player-chips">`;
     players.forEach(p => {
       const isSel = modalSelected?.name === p.name;
       html += `<button class="p-chip ${isSel ? `sel-${team}` : ""}" data-name="${p.name}" data-team="${team.toUpperCase()}">
-        ${p.name}
-        <span class="p-chip-role">${p.roleLabel}</span>
+        ${p.name}<span class="p-chip-role">${p.roleLabel}</span>
       </button>`;
     });
     html += `</div></div>`;
   }
   el.innerHTML = html;
+
   el.querySelectorAll(".p-chip").forEach(chip => {
     chip.addEventListener("click", () => {
-      // Deselect all
       document.querySelectorAll(".p-chip").forEach(c => c.classList.remove("sel-rcb","sel-gt"));
       chip.classList.add(`sel-${chip.dataset.team.toLowerCase()}`);
       modalSelected = { name: chip.dataset.name, team: chip.dataset.team };
@@ -712,12 +815,10 @@ function renderTeamInModal(containerId, squad, team) {
   });
 }
 
-// Search
 document.getElementById("modal-search").addEventListener("input", function() {
   const q = this.value.toLowerCase().trim();
   document.querySelectorAll(".p-chip").forEach(chip => {
-    const match = chip.dataset.name.toLowerCase().includes(q);
-    chip.classList.toggle("hidden-chip", !match);
+    chip.style.display = chip.dataset.name.toLowerCase().includes(q) ? "" : "none";
   });
 });
 
@@ -728,39 +829,39 @@ document.getElementById("modal-confirm").addEventListener("click", () => {
 });
 document.getElementById("modal-close").addEventListener("click", closeModal);
 document.getElementById("modal-backdrop").addEventListener("click", closeModal);
+
 function closeModal() {
   document.getElementById("player-modal").classList.add("hidden");
-  modalSelected = null; modalQid = null; modalOnPick = null;
+  modalSelected = null; modalOnPick = null;
 }
 
-// ─── ADMIN ─────────────────────────────────────────────────────────────────────
+// ─── ADMIN ────────────────────────────────────────────────────────────────────
 function syncAdminFields() {
-  const sv = (id, val) => { const el = document.getElementById(id); if(el && val !== undefined && val !== null) el.value = val; };
-  sv("a-toss", gs.tossWinner);
-  sv("a-bat", gs.battingFirst);
-  sv("a-status", gs.matchStatus);
-  sv("a-gt-r", gs.score?.gt?.runs);
-  sv("a-gt-w", gs.score?.gt?.wickets);
-  sv("a-gt-o", gs.score?.gt?.overs);
+  const sv = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
+  sv("a-toss",      gs.tossWinner);
+  sv("a-bat",       gs.battingFirst);
+  sv("a-status",    gs.matchStatus);
+  sv("a-rcb-r",     gs.score?.rcb?.runs);
+  sv("a-rcb-w",     gs.score?.rcb?.wickets);
+  sv("a-rcb-o",     gs.score?.rcb?.overs);
+  sv("a-rcb-status",gs.score?.rcb?.status);
+  sv("a-gt-r",      gs.score?.gt?.runs);
+  sv("a-gt-w",      gs.score?.gt?.wickets);
+  sv("a-gt-o",      gs.score?.gt?.overs);
   sv("a-gt-status", gs.score?.gt?.status);
-  sv("a-rcb-r", gs.score?.rcb?.runs);
-  sv("a-rcb-w", gs.score?.rcb?.wickets);
-  sv("a-rcb-o", gs.score?.rcb?.overs);
-  sv("a-rcb-status", gs.score?.rcb?.status);
-  // Fill actuals
+
   if (gs.actuals) {
     QUESTIONS.forEach(q => {
-      const v = gs.actuals[q.id];
       if (q.type === "bowling") {
-        const bwls = v ? v.split("/") : ["",""];
-        sv(`ar-${q.id}_w`, bwls[0]);
-        sv(`ar-${q.id}_r`, bwls[1]);
+        const parts = gs.actuals[q.id] ? gs.actuals[q.id].split("/") : ["",""];
+        sv(`ar-${q.id}_w`, parts[0]);
+        sv(`ar-${q.id}_r`, parts[1]);
         sv(`ar-${q.id}_bowler`, gs.actuals[`${q.id}_bowler`]);
       } else if (q.type === "margin") {
-        sv(`ar-${q.id}`, v);
+        sv(`ar-${q.id}`,      gs.actuals[q.id]);
         sv(`ar-${q.id}_type`, gs.actuals[`${q.id}_type`]);
       } else {
-        sv(`ar-${q.id}`, v);
+        sv(`ar-${q.id}`, gs.actuals[q.id]);
       }
     });
   }
@@ -769,82 +870,121 @@ function syncAdminFields() {
 function buildAdminResultsForm() {
   const form = document.getElementById("admin-results-form");
   form.innerHTML = "";
+
   QUESTIONS.forEach(q => {
-    const div = document.createElement("div");
-    div.className = "admin-result-row";
-    div.style.flexDirection = "column"; div.style.alignItems = "stretch"; div.style.gap = "8px";
-    div.innerHTML = `<div class="ar-label">${q.label}</div>`;
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "border-bottom:1px solid var(--border);padding:12px 0;display:flex;flex-direction:column;gap:8px;";
+
+    const label = document.createElement("div");
+    label.className = "ar-label";
+    label.textContent = q.label;
+    wrap.appendChild(label);
 
     if (q.type === "team") {
-      const sel = mkSel(`ar-${q.id}`, [["","— Select —"],["GT","GT"],["RCB","RCB"]]);
-      div.appendChild(sel);
+      wrap.appendChild(mkSel(`ar-${q.id}`, [["","— Select —"],["RCB","RCB"],["GT","GT"]]));
+
     } else if (q.type === "margin") {
-      const row = document.createElement("div"); row.style.display="flex"; row.style.gap="8px";
-      const inp = mkInput(`ar-${q.id}`, "number", "0"); inp.min="0"; inp.max="200"; inp.style.flex="1";
+      // Smart: derive margin type from battingFirst + winner, but let admin override
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:8px;";
+      const numInp = mkInput(`ar-${q.id}`, "number", "e.g. 24");
+      numInp.min = "1"; numInp.max = "200"; numInp.style.flex = "1";
       const typeS = mkSel(`ar-${q.id}_type`, [["runs","Runs"],["wickets","Wickets"]]);
-      typeS.style.flex="1";
-      row.appendChild(inp); row.appendChild(typeS);
-      div.appendChild(row);
+      typeS.style.flex = "1";
+      // Auto-set type based on setup
+      if (gs.battingFirst && gs.actuals?.q_winner) {
+        typeS.value = gs.actuals.q_winner === gs.battingFirst ? "runs" : "wickets";
+      }
+      row.appendChild(numInp); row.appendChild(typeS);
+      wrap.appendChild(row);
+
     } else if (q.type === "player") {
-      // Simple text input for admin convenience
+      // Searchable text input for admin speed
       const inp = mkInput(`ar-${q.id}`, "text", "Player name");
-      div.appendChild(inp);
+      inp.setAttribute("list", `datalist-${q.id}`);
+      const dl = document.createElement("datalist");
+      dl.id = `datalist-${q.id}`;
+      // Build correct player list per filter
+      let pool = [...RCB_SQUAD, ...GT_SQUAD];
+      if (q.filter === "batAR")  pool = [...rcbBatAR(), ...gtBatAR()];
+      if (q.filter === "bowlAR") pool = [...rcbBowlAR(), ...gtBowlAR()];
+      pool.forEach(p => {
+        const opt = document.createElement("option"); opt.value = p.name; dl.appendChild(opt);
+      });
+      wrap.appendChild(dl);
+      wrap.appendChild(inp);
+
     } else if (q.type === "number") {
       const inp = mkInput(`ar-${q.id}`, "number", "0");
       inp.min = String(q.min); inp.max = String(q.max);
-      div.appendChild(inp);
+      wrap.appendChild(inp);
+
     } else if (q.type === "bowling") {
-      const row = document.createElement("div"); row.style.display="flex"; row.style.gap="8px";
-      const wI = mkInput(`ar-${q.id}_w`, "number","0"); wI.min="0"; wI.max="10"; wI.placeholder="Wkts"; wI.style.flex="1";
-      const rI = mkInput(`ar-${q.id}_r`, "number","0"); rI.min="0"; rI.max="99"; rI.placeholder="Runs"; rI.style.flex="1";
+      const hint = document.createElement("div");
+      hint.style.cssText = "font-size:.72rem;color:var(--t2);";
+      hint.textContent = "Wickets / Runs conceded / Bowler name";
+      wrap.appendChild(hint);
+
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:8px;";
+      const wI = mkInput(`ar-${q.id}_w`, "number", "Wkts"); wI.min="0"; wI.max="10"; wI.style.flex="1";
+      const rI = mkInput(`ar-${q.id}_r`, "number", "Runs"); rI.min="0"; rI.max="99"; rI.style.flex="1";
       row.appendChild(wI); row.appendChild(rI);
-      div.appendChild(row);
-      const bI = mkInput(`ar-${q.id}_bowler`, "text","Bowler name");
-      div.appendChild(bI);
+      wrap.appendChild(row);
+
+      // Bowler autocomplete
+      const bInp = mkInput(`ar-${q.id}_bowler`, "text", "Bowler name (optional)");
+      bInp.setAttribute("list", `datalist-bowl-${q.id}`);
+      const dl2 = document.createElement("datalist"); dl2.id = `datalist-bowl-${q.id}`;
+      [...rcbBowlAR(), ...gtBowlAR()].forEach(p => {
+        const opt = document.createElement("option"); opt.value = p.name; dl2.appendChild(opt);
+      });
+      wrap.appendChild(dl2);
+      wrap.appendChild(bInp);
     }
-    form.appendChild(div);
+
+    form.appendChild(wrap);
   });
 }
 
 function mkSel(id, opts) {
-  const s = document.createElement("select"); s.className="a-select"; s.id=id;
-  opts.forEach(([v,l]) => { const o=document.createElement("option"); o.value=v; o.textContent=l; s.appendChild(o); });
+  const s = document.createElement("select"); s.className = "a-select"; s.id = id;
+  opts.forEach(([v,l]) => { const o = document.createElement("option"); o.value=v; o.textContent=l; s.appendChild(o); });
   return s;
 }
 function mkInput(id, type, ph) {
-  const i = document.createElement("input"); i.type=type; i.id=id;
-  i.className="a-input"; i.placeholder=ph; return i;
+  const i = document.createElement("input"); i.type=type; i.id=id; i.className="a-input"; i.placeholder=ph; return i;
 }
 
 document.getElementById("btn-save-setup").addEventListener("click", async () => {
   try {
     await update(ref(db,"gameState"), {
-      tossWinner: document.getElementById("a-toss").value,
+      tossWinner:  document.getElementById("a-toss").value,
       battingFirst: document.getElementById("a-bat").value,
       matchStatus: document.getElementById("a-status").value,
     });
     showToast("✅ Setup saved!");
-  } catch(e) { showToast("❌ Error"); console.error(e); }
+  } catch(e) { showToast("❌ Error saving"); console.error(e); }
 });
 
 document.getElementById("btn-save-score").addEventListener("click", async () => {
   try {
     await update(ref(db,"gameState/score"), {
-      gt: {
-        runs:    parseInt(document.getElementById("a-gt-r").value)||0,
-        wickets: parseInt(document.getElementById("a-gt-w").value)||0,
-        overs:   parseFloat(document.getElementById("a-gt-o").value)||0,
-        status:  document.getElementById("a-gt-status").value,
-      },
       rcb: {
-        runs:    parseInt(document.getElementById("a-rcb-r").value)||0,
-        wickets: parseInt(document.getElementById("a-rcb-w").value)||0,
-        overs:   parseFloat(document.getElementById("a-rcb-o").value)||0,
+        runs:    parseInt(document.getElementById("a-rcb-r").value) || 0,
+        wickets: parseInt(document.getElementById("a-rcb-w").value) || 0,
+        overs:   parseFloat(document.getElementById("a-rcb-o").value) || 0,
         status:  document.getElementById("a-rcb-status").value,
       },
+      gt: {
+        runs:    parseInt(document.getElementById("a-gt-r").value) || 0,
+        wickets: parseInt(document.getElementById("a-gt-w").value) || 0,
+        overs:   parseFloat(document.getElementById("a-gt-o").value) || 0,
+        status:  document.getElementById("a-gt-status").value,
+      },
     });
-    showToast("📡 Score updated!");
-  } catch(e) { showToast("❌ Error"); console.error(e); }
+    showToast("📡 Score updated live!");
+  } catch(e) { showToast("❌ Error updating score"); console.error(e); }
 });
 
 document.getElementById("btn-save-results").addEventListener("click", async () => {
@@ -853,13 +993,13 @@ document.getElementById("btn-save-results").addEventListener("click", async () =
     if (q.type === "bowling") {
       const w = document.getElementById(`ar-${q.id}_w`)?.value;
       const r = document.getElementById(`ar-${q.id}_r`)?.value;
-      if (w || r) actuals[q.id] = `${w||0}/${r||0}`;
-      const bname = document.getElementById(`ar-${q.id}_bowler`)?.value;
-      if (bname) actuals[`${q.id}_bowler`] = bname;
+      if (w !== "" || r !== "") actuals[q.id] = `${w||0}/${r||0}`;
+      const b = document.getElementById(`ar-${q.id}_bowler`)?.value;
+      if (b) actuals[`${q.id}_bowler`] = b;
     } else if (q.type === "margin") {
-      const v = document.getElementById(`ar-${q.id}`)?.value;
-      const mt = document.getElementById(`ar-${q.id}_type`)?.value;
-      if (v) { actuals[q.id] = parseFloat(v); actuals[`${q.id}_type`] = mt||"runs"; }
+      const v  = document.getElementById(`ar-${q.id}`)?.value;
+      const mt = document.getElementById(`ar-${q.id}_type`)?.value || "runs";
+      if (v) { actuals[q.id] = parseFloat(v); actuals[`${q.id}_type`] = mt; }
     } else if (q.type === "number") {
       const v = document.getElementById(`ar-${q.id}`)?.value;
       if (v !== "" && v !== undefined) actuals[q.id] = parseFloat(v);
@@ -870,8 +1010,8 @@ document.getElementById("btn-save-results").addEventListener("click", async () =
   });
   try {
     await update(ref(db,"gameState"), { actuals });
-    showToast("🏁 Results saved! Scores calculating…");
-  } catch(e) { showToast("❌ Error"); console.error(e); }
+    showToast("🏁 Results saved — scores updating for everyone!");
+  } catch(e) { showToast("❌ Error saving results"); console.error(e); }
 });
 
 function renderAdminPlayerStatus() {
@@ -881,7 +1021,7 @@ function renderAdminPlayerStatus() {
     const has = !!allPreds[p.id];
     return `<div class="admin-player-row">
       <span class="apr-name">${p.emoji} ${p.name}</span>
-      <span class="apr-status ${has?"status-done":"status-pend"}">${has?"✅ Done":"⏳ Pending"}</span>
+      <span class="apr-status ${has ? "status-done" : "status-pend"}">${has ? "✅ Done" : "⏳ Pending"}</span>
     </div>`;
   }).join("");
 }
@@ -901,8 +1041,5 @@ function showToast(msg) {
 }
 
 function setupListeners() {
-  // Keyboard shortcut
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape") closeModal();
-  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 }
