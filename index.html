@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>MAHA IPL 🏏 Game Night</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏏</text></svg>"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ═══════════════ SCREEN: NAME SELECT ═══════════════ -->
+<div id="s-name" class="screen active">
+  <div class="name-hero">
+    <div class="fire-text">🔥</div>
+    <h1 class="brand">MAHA IPL</h1>
+    <p class="brand-sub">Game Night &nbsp;·&nbsp; <span class="rcb-color">RCB</span> <span class="vs-dot">vs</span> <span class="gt-color">GT</span> &nbsp;Final</p>
+    <div class="toss-badge" id="hero-toss-badge"></div>
+  </div>
+  <div class="name-body">
+    <h2 class="pick-title">Who are you? 👋</h2>
+    <p class="pick-sub">Tap your name to enter</p>
+    <div class="name-grid" id="name-grid"></div>
+    <div class="admin-entry">
+      <button class="btn-admin" id="btn-open-admin-login">🔐 Admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SCREEN: ADMIN LOGIN ═══════════════ -->
+<div id="s-admin-login" class="screen">
+  <div class="topbar">
+    <button class="tb-back" id="btn-back-admin-login">←</button>
+    <span class="tb-title">Admin Login</span>
+    <span></span>
+  </div>
+  <div class="center-card">
+    <div class="lock-icon">🔐</div>
+    <h2>Enter Password</h2>
+    <input type="password" id="admin-pw" class="pw-input" placeholder="••••" maxlength="8"/>
+    <button class="btn-primary" id="btn-admin-go">Enter</button>
+    <p class="err-msg hidden" id="admin-err">Wrong password!</p>
+  </div>
+</div>
+
+<!-- ═══════════════ SCREEN: PREDICTIONS ═══════════════ -->
+<div id="s-predict" class="screen">
+  <div class="topbar sticky">
+    <button class="tb-back" id="btn-back-predict">←</button>
+    <span class="tb-title" id="predict-title">Your Predictions</span>
+    <span class="lock-chip" id="predict-lock-chip"></span>
+  </div>
+
+  <!-- Mini Live Score Banner -->
+  <div class="mini-score-bar" id="mini-score-bar"></div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+    <span class="progress-label" id="progress-label">0 / 13</span>
+  </div>
+
+  <div class="predict-content" id="predict-content"></div>
+
+  <div class="submit-area" id="submit-area">
+    <button class="btn-submit" id="btn-submit">🚀 Lock In My Predictions</button>
+  </div>
+  <div class="locked-banner hidden" id="locked-banner">
+    🔒 Match has started — predictions are locked!
+  </div>
+</div>
+
+<!-- ═══════════════ SCREEN: DASHBOARD ═══════════════ -->
+<div id="s-dash" class="screen">
+  <div class="topbar sticky">
+    <button class="tb-back" id="btn-back-dash">←</button>
+    <span class="tb-title" id="dash-title">Dashboard</span>
+    <button class="tb-refresh" id="btn-refresh">↻</button>
+  </div>
+
+  <!-- Live Score Card -->
+  <div class="live-card" id="live-card">
+    <div class="lc-label">RCB vs GT · IPL Final 2026</div>
+    <div class="lc-scores">
+      <div class="lc-team" id="lc-rcb">
+        <span class="lc-tname rcb-color">RCB</span>
+        <span class="lc-runs" id="lc-rcb-score">—</span>
+        <span class="lc-ov" id="lc-rcb-ov"></span>
+      </div>
+      <div class="lc-vs">VS</div>
+      <div class="lc-team" id="lc-gt">
+        <span class="lc-tname gt-color">GT</span>
+        <span class="lc-runs" id="lc-gt-score">—</span>
+        <span class="lc-ov" id="lc-gt-ov"></span>
+      </div>
+    </div>
+    <div class="lc-status" id="lc-status">Pre-Match</div>
+    <div class="lc-innings-info" id="lc-innings-info"></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-row">
+    <button class="tab active" data-tab="leaderboard">🏆 Ranks</button>
+    <button class="tab" data-tab="mypicks">📋 My Picks</button>
+    <button class="tab" data-tab="allpicks">👀 All Picks</button>
+  </div>
+
+  <div class="tab-body">
+    <div id="tab-leaderboard" class="tab-panel active"></div>
+    <div id="tab-mypicks" class="tab-panel"></div>
+    <div id="tab-allpicks" class="tab-panel"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SCREEN: ADMIN ═══════════════ -->
+<div id="s-admin" class="screen">
+  <div class="topbar sticky">
+    <button class="tb-back" id="btn-back-admin">←</button>
+    <span class="tb-title">⚙️ Admin Panel</span>
+    <span></span>
+  </div>
+  <div class="admin-content">
+
+    <!-- Match Setup -->
+    <div class="admin-card">
+      <h3>🏏 Match Setup</h3>
+      <div class="form-row">
+        <label>Toss Winner</label>
+        <select id="a-toss" class="a-select">
+          <option value="">— Select —</option>
+          <option value="RCB">Royal Challengers Bengaluru (RCB)</option>
+          <option value="GT">Gujarat Titans (GT)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Batting First</label>
+        <select id="a-bat" class="a-select">
+          <option value="">— Select —</option>
+          <option value="RCB">Royal Challengers Bengaluru (RCB)</option>
+          <option value="GT">Gujarat Titans (GT)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Match Status</label>
+        <select id="a-status" class="a-select">
+          <option value="pre">Pre-Match (Predictions Open)</option>
+          <option value="live">Live (Predictions Locked)</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <button class="btn-admin-save" id="btn-save-setup">💾 Save Setup</button>
+    </div>
+
+    <!-- Innings Score -->
+    <div class="admin-card">
+      <h3>📡 Update Innings Scores</h3>
+      <p class="admin-hint">Update after each innings (halftime or end of match)</p>
+      <div class="innings-grid">
+        <div class="innings-col">
+          <div class="innings-team-label rcb-color">🔴 RCB</div>
+          <div class="form-row"><label>Runs</label><input type="number" id="a-rcb-r" class="a-input" min="0" placeholder="0"/></div>
+          <div class="form-row"><label>Wickets</label><input type="number" id="a-rcb-w" class="a-input" min="0" max="10" placeholder="0"/></div>
+          <div class="form-row"><label>Overs</label><input type="number" id="a-rcb-o" class="a-input" min="0" max="20" step="0.1" placeholder="0.0"/></div>
+          <div class="form-row"><label>Status</label>
+            <select id="a-rcb-status" class="a-select">
+              <option value="">—</option>
+              <option value="batting">Batting</option>
+              <option value="bowling">Bowling</option>
+              <option value="done">Innings Done</option>
+            </select>
+          </div>
+        </div>
+        <div class="innings-col">
+          <div class="innings-team-label gt-color">🔵 GT</div>
+          <div class="form-row"><label>Runs</label><input type="number" id="a-gt-r" class="a-input" min="0" placeholder="0"/></div>
+          <div class="form-row"><label>Wickets</label><input type="number" id="a-gt-w" class="a-input" min="0" max="10" placeholder="0"/></div>
+          <div class="form-row"><label>Overs</label><input type="number" id="a-gt-o" class="a-input" min="0" max="20" step="0.1" placeholder="0.0"/></div>
+          <div class="form-row"><label>Status</label>
+            <select id="a-gt-status" class="a-select">
+              <option value="">—</option>
+              <option value="batting">Batting</option>
+              <option value="bowling">Bowling</option>
+              <option value="done">Innings Done</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <button class="btn-admin-save" id="btn-save-score">📡 Update Score Live</button>
+    </div>
+
+    <!-- Final Results -->
+    <div class="admin-card">
+      <h3>🏁 Final Results</h3>
+      <p class="admin-hint">Fill these after the match ends — leaderboard auto-updates for everyone.</p>
+      <div id="admin-results-form"></div>
+      <button class="btn-admin-save green" id="btn-save-results">✅ Save Results & Calculate Scores</button>
+    </div>
+
+    <!-- Player status -->
+    <div class="admin-card">
+      <h3>👥 Prediction Status</h3>
+      <div id="admin-player-status"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ PLAYER PICKER MODAL ═══════════════ -->
+<div id="player-modal" class="modal hidden">
+  <div class="modal-backdrop" id="modal-backdrop"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Select Player</span>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-search-wrap">
+      <input type="text" class="modal-search" id="modal-search" placeholder="🔍 Search player..."/>
+    </div>
+    <div class="modal-teams" id="modal-teams">
+      <!-- RCB LEFT, GT RIGHT -->
+      <div class="modal-team">
+        <div class="modal-team-header rcb-bg">🔴 RCB · Royal Challengers</div>
+        <div class="modal-team-body" id="modal-rcb"></div>
+      </div>
+      <div class="modal-team">
+        <div class="modal-team-header gt-bg">🔵 GT · Gujarat Titans</div>
+        <div class="modal-team-body" id="modal-gt"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="modal-confirm">✓ Confirm Selection</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="toast hidden"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
