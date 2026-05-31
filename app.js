@@ -1,5 +1,5 @@
 // ─── app.js ──────────────────────────────────────────────────────────────────
-import { db, ref, set, update, onValue } from "./firebase.js";
+import { db, ref, set, get, update, onValue } from "./firebase.js";
 import {
   FAMILY, QUESTIONS, RCB_SQUAD, GT_SQUAD,
   rcbBatAR, rcbBowlAR, gtBatAR, gtBowlAR,
@@ -99,21 +99,25 @@ function updateHeroBadge() {
   } else { el.style.display = "none"; }
 }
 
-function enterAsPlayer(p) {
+async function enterAsPlayer(p) {
   me = p;
-  // If already predicted → go straight to dashboard, NO prediction screen
-  if (allPreds[p.id]) {
-    localPreds = { ...allPreds[p.id] };
+  // ALWAYS check Firebase directly — never trust cached allPreds
+  const snap = await get(ref(db, `predictions/${p.id}`));
+  if (snap.exists()) {
+    // Already submitted — go to dashboard, NEVER show prediction form
+    allPreds[p.id] = snap.val();
+    localPreds = { ...snap.val() };
     showDash();
     return;
   }
-  // If match live/completed → can't predict anymore → go to dashboard
+  // Not submitted yet — but check match status
   if (gs.matchStatus !== "pre") {
+    // Match started, no predictions allowed — dashboard only
     localPreds = {};
     showDash();
     return;
   }
-  // Fresh predictions
+  // Fresh, match open — show prediction form
   localPreds = {};
   show("s-predict");
   document.getElementById("predict-title").textContent = `${p.emoji} ${p.name}`;
@@ -372,7 +376,14 @@ function renderMiniScoreBar() {
 // ─── SUBMIT ───────────────────────────────────────────────────────────────────
 document.getElementById("btn-submit").addEventListener("click", async () => {
   if (!me || gs.matchStatus !== "pre") return;
-  if (allPreds[me.id]) { showToast("✅ Already submitted!"); showDash(); return; }
+  // Double-check Firebase before saving — final guard
+  const existSnap = await get(ref(db, `predictions/${me.id}`));
+  if (existSnap.exists()) {
+    allPreds[me.id] = existSnap.val();
+    showToast("✅ Already submitted — taking you to dashboard!");
+    showDash();
+    return;
+  }
 
   const missing = QUESTIONS.filter(q => {
     const v = localPreds[q.id];
